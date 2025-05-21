@@ -1,0 +1,19 @@
+# Earth Engine API for geospatial data
+earthengine-api>=0.1.362
+
+# LangChain for chaining LLM prompts and tools
+langchain>=0.0.148
+
+# Huggingface Transformers and Sentence Transformers for open-source LLMs and embeddings
+transformers>=4.30.0
+sentence-transformers>=2.2.2
+
+# PyTorch with CUDA support (check your CUDA version!)
+torch>=2.0.1
+torchvision>=0.15.2
+torchaudio>=2.0.2
+
+# Data processing & utils
+numpy>=1.24.0
+pandas>=2.0.1
+matplotlib>=3.7.1
