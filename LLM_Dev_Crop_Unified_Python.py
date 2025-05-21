@@ -7,7 +7,9 @@ Created on Wed May 21 12:39:02 2025
 
 from langchain.agents import Tool, initialize_agent
 from langchain.agents.agent_types import AgentType
-from langchain.llms import HuggingFacePipeline
+#from langchain.llms import HuggingFacePipeline
+from langchain_community.llms import HuggingFacePipeline
+
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 import numpy as np
 import yfinance as yf

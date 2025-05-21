@@ -18,3 +18,7 @@ torchaudio>=2.0.2
 numpy>=1.24.0
 pandas>=2.0.1
 matplotlib>=3.7.1
+
+
+# Finance package 
+yfinance==0.2.37
