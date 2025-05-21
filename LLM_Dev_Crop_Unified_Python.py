@@ -61,7 +61,7 @@ model = AutoModelForCausalLM.from_pretrained(model_id)
 pipe = pipeline("text-generation", model=model, tokenizer=tokenizer, max_new_tokens=256)
 llm = HuggingFacePipeline(pipeline=pipe)
 
-print("mole loaded")
+print("model loaded")
 
 # === Helper functions ===
 
@@ -104,13 +104,22 @@ tools = [
 
 # === Initialize agent with output parsing errors handled ===
 
+# agent = initialize_agent(
+#     tools,
+#     llm,
+#     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+#     verbose=True,
+#     handle_parsing_errors=True  # ✅ important!
+# )
+
 agent = initialize_agent(
     tools,
     llm,
     agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
     verbose=True,
-    handle_parsing_errors=True  # ✅ important!
+    handle_parsing_errors=False  # <-- Turn off to see raw output for debugging
 )
+
 
 print("Run the workflow")
 # === Run the workflow ===
