@@ -1,3 +1,3 @@
 # LLM_Dev_Crop
 
-![](LLM_dev_Crop.png)
+![](LLM_Dev_Crop.jpg)
