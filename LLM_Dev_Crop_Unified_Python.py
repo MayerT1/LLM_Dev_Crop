@@ -23,33 +23,33 @@ import numpy as np
 
 
 # Authenticate and initialize Earth Engine
-import ee
-import geemap
-import geemap.chart as chart
-ee.Authenticate()
-ee.Initialize(project='servir-sco-assets')
-Map = geemap.Map()
+# import ee
+# import geemap
+# import geemap.chart as chart
+# ee.Authenticate()
+# ee.Initialize(project='servir-sco-assets')
+# Map = geemap.Map()
 
 
 
-#Coordinates for the bounds of a rectangle.
-xMin = -89.63038298978414;
-yMin = 35.92644038827682;
-xMax = -89.43400237454976;
-yMax = 36.070319808111755;
+# #Coordinates for the bounds of a rectangle.
+# xMin = -89.63038298978414;
+# yMin = 35.92644038827682;
+# xMax = -89.43400237454976;
+# yMax = 36.070319808111755;
 
-#Construct a rectangle from a list of GeoJSON 'point' formatted coordinates.
-ROI= ee.Geometry.Rectangle(xMin, yMin,xMax, yMax)
-Map.addLayer(ROI, {}, 'ROI');
-
-
-NASS = ee.ImageCollection('USDA/NASS/CDL').filter(ee.Filter.date('2018-01-01', '2019-12-31')).first().clip(ROI)
-cropLandcover = NASS.select('cropland');
-Map.addLayer(cropLandcover, {}, 'Crop Landcover');
+# #Construct a rectangle from a list of GeoJSON 'point' formatted coordinates.
+# ROI= ee.Geometry.Rectangle(xMin, yMin,xMax, yMax)
+# Map.addLayer(ROI, {}, 'ROI');
 
 
-Map
-print("ROI has been loaded")
+# NASS = ee.ImageCollection('USDA/NASS/CDL').filter(ee.Filter.date('2018-01-01', '2019-12-31')).first().clip(ROI)
+# cropLandcover = NASS.select('cropland');
+# Map.addLayer(cropLandcover, {}, 'Crop Landcover');
+
+
+# Map
+# print("ROI has been loaded")
 
 ################
 
