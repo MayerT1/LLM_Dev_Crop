@@ -3,6 +3,7 @@ earthengine-api>=0.1.362
 
 # LangChain for chaining LLM prompts and tools
 langchain>=0.0.148
+langchain-community==0.0.9
 
 # Huggingface Transformers and Sentence Transformers for open-source LLMs and embeddings
 transformers>=4.30.0
