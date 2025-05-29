@@ -3,11 +3,11 @@
 This LLM Dev git has three approaches 
 
 1-multi_tool_agentmulti_tool_agent/
-?
-??? __init__.py         ?? defines `agent` with all tools
-??? geo_data_agent.py   ?? defines `get_geo_data`
-??? geo_input_agent.py  ?? defines `parse_geo_input`
-??? geo_market_agent.py ?? defines `estimate_crop_price`
+|
+|- __init__.py          - defines `agent` with all tools
+|-  geo_data_agent.py   - defines `get_geo_data`
+|-  geo_input_agent.py  - defines `parse_geo_input`
+|-  geo_market_agent.py - defines `estimate_crop_price`
 
 
 Using Google ADK, google earth engine, and gemini to orchestrate multiple agent tools. All is conducted in the cloud
