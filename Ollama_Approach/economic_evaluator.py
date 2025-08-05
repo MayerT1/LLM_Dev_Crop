@@ -94,7 +94,7 @@ def experiment_tool(planting_date: str, fert_plan: List[List[float]], cultivar: 
             planting_date=planting_date,
             fert_plan=fert_plan,
             cultivar=cultivar,
-            admin1_country="Alabama",
+            admin1_country="alabama",
             admin1_name="St. Clair"
         )
 
