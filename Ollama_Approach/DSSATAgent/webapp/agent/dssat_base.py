@@ -2,16 +2,13 @@
 Contains functions and classes to handle the selection of different options
 in the user interface.
 """
-import sys
-
-sys.path.append("..")
-import database as db
-from dssat_service import run_spatial_dssat
+from .database import *
+from .dssat_service import run_spatial_dssat
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
-from overview import FAKE_OVERVIEW
+from .overview import FAKE_OVERVIEW
 
 CULTIVAR_NAMES = {
     'KY0018': 'KATUMANICOMP-II', 'KY0016': 'HAC ', 'KY0014': 'KATUMANICOMPI',
@@ -36,7 +33,7 @@ def admin_list(con, schema):
     """
     Returns a list with the admin units set for simulation in that schema
     """
-    return list(sorted(db.fetch_admin1_list(con, schema)))
+    return list(sorted(fetch_admin1_list(con, schema)))
 
 
 @dataclass
@@ -62,13 +59,13 @@ class AdminBase:
         self.admin1 = admin1
         self.schema = schema
 
-        self.forecast_results, self.forecast_overview = db.fetch_forecast_tables(
+        self.forecast_results, self.forecast_overview = fetch_forecast_tables(
             con, schema, admin1
         )
-        tmp_df = db.fetch_cultivars(con, schema, admin1)
+        tmp_df = fetch_cultivars(con, schema, admin1)
         tmp_df = tmp_df.set_index(["maturity_type"])
         self.cultivars = tmp_df.sort_values(by="season_length")
-        self.obs_reference = db.fetch_observed_reference(con, schema, admin1)
+        self.obs_reference = fetch_observed_reference(con, schema, admin1)
         # TODO: This will be replaced with a model performance stats
         # pars = db.fetch_baseline_pars(con, schema, admin1)
         # self.baseline_pars = SimulationPars(

@@ -2,9 +2,9 @@
 This module contains the function to run the model given a set of inputs.
 """
 import traceback
-from dssat_run import GSRun
+from .dssat_run import GSRun
 from DSSATTools.weather import Weather
-import database as db
+from .database import *
 
 import numpy as np
 import pandas as pd
@@ -45,7 +45,7 @@ def add_harmonic_coefs(tmp_df):
 
 def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
                       plantingdate:datetime, cultivar:str,
-                      nitrogen:list[tuple], nens:int=50,
+                      nitrogen:list[tuple], nens:int=2,
                       all_random:bool=True, overview:bool=False,
                       return_input=False, weather_table:str='prism',
                       **kwargs):
@@ -92,14 +92,14 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
     # start_date = plantingdate
     start_date = plantingdate - timedelta(days=30)
     end_date = plantingdate + timedelta(days=MAX_SIM_LENGTH)
-    db.check_admin1_in_country(con, schema, admin1)
+    check_admin1_in_country(con, schema, admin1)
     # Get soils and verify a minimum number of pixel samples
-    soils = db.get_soils(con, schema, admin1, 1)
+    soils = get_soils(con, schema, admin1, 1)
     # Assign weather retrieval function
     if weather_table == 'era5':
-        get_weather_for_point = db.get_era5_for_point
+        get_weather_for_point = get_era5_for_point
     elif weather_table == 'prism':
-        get_weather_for_point = db.get_prism_for_point
+        get_weather_for_point = get_prism_for_point
     else:
         raise NameError(f'{weather_table} tables not in database')
     # Get weather pixels
@@ -120,9 +120,9 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
     all_pixels_weather = pd.Series([(i[0], i[1]) for i in rows])
 
     if len(soils) < MIN_SAMPLES:
-       soils = db.get_soils(con, schema, admin1, 2)
+       soils = get_soils(con, schema, admin1, 2)
        if len(soils) < MIN_SAMPLES:
-          soils = db.get_soils(con, schema, admin1, None)
+          soils = get_soils(con, schema, admin1, None)
           assert len(soils) > MIN_SAMPLES, \
             f"Region is not large enough to have at least {MIN_SAMPLES} samples"
 
@@ -153,11 +153,11 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
     gs = GSRun()
 
     # Check if TAVG and TAMP are in static table
-    tav_exists = db.verify_static_par_exists(con, schema, "tav")
-    tamp_exists = db.verify_static_par_exists(con, schema, "tamp")
+    tav_exists = verify_static_par_exists(con, schema, "tav")
+    tamp_exists = verify_static_par_exists(con, schema, "tamp")
 
     iter_pixels = list(enumerate(zip(soil_pixels, weather_pixels)))
-    print(tqdm(iter_pixels))
+    # print(tqdm(iter_pixels))
     for (n, (soil, weather_data)) in tqdm(iter_pixels):
         soil_profile = soils.loc[
             (soils.lon==soil[0]) & (soils.lat==soil[1]),
@@ -166,7 +166,7 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
 
         # Get weather
         # Verify that all the series are available from past weather
-        latest_past_weather = db.latest_date(con, schema, f"{weather_table}_rain")
+        latest_past_weather = latest_date(con, schema, f"{weather_table}_rain")
         if latest_past_weather >= end_date: # End of season
             weather_df = get_weather_for_point(
                 con, schema, weather_data[0], weather_data[1],
@@ -175,7 +175,7 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
             if weather_df is None:
                 continue
         else: # Forecast
-            latest_forecast_weather = db.latest_date(con, schema, "nmme_rain")
+            latest_forecast_weather = latest_date(con, schema, "nmme_rain")
             end_date = latest_forecast_weather
             # Get latest year of past weather. That year is used to train a
             # KNN estimator for srad
@@ -189,7 +189,7 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
             if past_weather_df is None:
                 continue
             ens = np.random.randint(1, 11)
-            future_weather_df = db.get_nmme_for_point(
+            future_weather_df = get_nmme_for_point(
                 con, schema, weather_data[0], weather_data[1],
                 latest_past_weather, end_date, ens
             )
@@ -250,8 +250,8 @@ def run_spatial_dssat(con:pg.extensions.connection, schema:str, admin1:str,
 
 
         if tav_exists and tamp_exists:
-            tav = db.get_static_par(con, schema, weather_data[0], weather_data[1], "tav")
-            tamp = db.get_static_par(con, schema, weather_data[0], weather_data[1], "tamp")
+            tav = get_static_par(con, schema, weather_data[0], weather_data[1], "tav")
+            tamp = get_static_par(con, schema, weather_data[0], weather_data[1], "tamp")
         else:
             tav = None
             tamp = None

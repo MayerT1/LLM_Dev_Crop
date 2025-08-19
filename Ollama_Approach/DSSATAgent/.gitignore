@@ -1,0 +1,6 @@
+config.json
+county_data.json
+db.sqlite3
+staticfiles/
+__pycache__/
+.idea/

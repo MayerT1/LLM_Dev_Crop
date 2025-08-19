@@ -2,11 +2,11 @@ import json
 import psycopg2
 from sshtunnel import SSHTunnelForwarder
 from datetime import datetime, timedelta
-from dssat_plot import get_stress_series_data, get_anomaly_series_data, get_columnRange_series_data
-from dssat_base import Session, AdminBase
+from .dssat_plot import get_stress_series_data, get_anomaly_series_data, get_columnRange_series_data
+from .dssat_base import Session, AdminBase
 import traceback
 
-f = open('config.json', )
+f = open('./config.json', )
 config = json.load(f)
 
 
@@ -101,10 +101,6 @@ def run_experiment(planting_date, fert_plan, cultivar, admin1_country, admin1_na
         new_chart_data_water = get_stress_series_data(session, stresstype="water")
 
         new_chart_data_nitro = get_stress_series_data(session, stresstype="nitrogen")
-        
-        print(new_chart_data_water)
-        print(new_chart_data_nitro)
-        print(new_chart_data_range)
 
         return (new_chart_data_range, new_chart_data_nitro, new_chart_data_water)
     except Exception as e:

@@ -1,8 +1,8 @@
 """
 Functions to create highchart plots
 """
-from dssat_base import AdminBase, Session, QUANTILES_TO_COMPARE
-from data_transform import parse_overview
+from .dssat_base import AdminBase, Session, QUANTILES_TO_COMPARE
+from .data_transform import parse_overview
 
 import numpy as np
 from scipy import stats

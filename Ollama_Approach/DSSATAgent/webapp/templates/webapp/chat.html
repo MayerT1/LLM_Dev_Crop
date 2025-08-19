@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - {{ chat.title|default:"Untitled" }}</title>
+
+    <!-- External Dependencies -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Static Files -->
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'webapp/css/chat.css' %}">
+</head>
+<body>
+    <div class="container">
+        <div class="chat-section">
+            <div class="chat-header">
+                <h1 class="chat-title">{{ chat.title|default:"Chat" }}</h1>
+                <div id="status-indicator" class="status-indicator {{ is_processing|yesno:'processing,ready' }}">
+                    {{ is_processing|yesno:'Processing...,Ready' }}
+                </div>
+            </div>
+
+            <div class="messages-container" id="messages-container">
+                {% for message in messages %}
+                <div class="message {{ message.type }} {% if message.status == 'pending' %}pending{% endif %}"
+                     data-message-id="{{ message.id }}" data-status="{{ message.status }}">
+                    <div class="message-content">
+                        {% if message.status == 'pending' %}
+                            <div class="typing-indicator">
+                                Thinking
+                                <div class="typing-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                            </div>
+                        {% else %}
+                            {{ message.content|linebreaks }}
+                        {% endif %}
+                    </div>
+                    <div class="message-meta">
+                        {{ message.created_at|date:"M j, H:i" }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="input-container">
+                <form class="input-form" id="message-form">
+                    <input type="text"
+                           class="message-input"
+                           id="message-input"
+                           placeholder="Type your message..."
+                           autocomplete="off"
+                           {% if is_processing %}disabled{% endif %}>
+                    <button type="submit"
+                            class="send-button"
+                            id="send-button"
+                            {% if is_processing %}disabled{% endif %}>
+                        Send
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="chart-section" id="chart-section">
+            <div class="chart-gallery">
+                <h3>Chart Gallery</h3>
+                <div id="chart-container">
+                    <!-- Charts will be dynamically added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Template Data for JavaScript -->
+    {{ messages|json_script:"messages-data" }}
+
+    <script type="application/json" id="template-data">
+        {
+            "chatId": "{{ chat_id }}",
+            "isProcessing": {{ is_processing|yesno:'true,false' }}
+        }
+    </script>
+
+    <!-- JavaScript -->
+    <script src="{% static 'webapp/js/chat.js' %}"></script>
+</body>
+</html>

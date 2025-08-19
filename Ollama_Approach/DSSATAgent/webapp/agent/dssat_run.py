@@ -9,7 +9,7 @@ import string
 from itertools import product
 import tempfile
 
-from dssat_run_utils import *
+from .dssat_run_utils import *
 from DSSATTools import __file__ as dsssattools_module_path
 from DSSATTools import VERSION
 
