@@ -64,12 +64,27 @@ class MessageAPIView(View):
 
             chat = get_object_or_404(Chat, id=chat_id)
 
-            compiled_messages = "\n".join(
-                chat.messages
-                .filter(message_type='user')
-                .order_by('created_at')
-                .values_list('content', flat=True)
-            )
+            # Build conversation history in the format expected by the agent
+            conversation_parts = []
+            messages = chat.messages.filter(
+                message_type__in=['user', 'assistant']
+            ).order_by('created_at')
+
+            for message in messages:
+                if message.message_type == 'user':
+                    conversation_parts.append(f"User: {message.content}")
+                elif message.message_type == 'assistant' and message.content.strip():
+                    # Only include completed assistant messages with content
+                    conversation_parts.append(f"Assistant: {message.content}")
+
+            # Add the current user message to the conversation
+            conversation_parts.append(f"User: {content}")
+
+            # Compile the full conversation context
+            if len(conversation_parts) > 1:  # More than just the current message
+                compiled_conversation = "\n\n".join(conversation_parts)
+            else:
+                compiled_conversation = content  # First message, no history needed
 
             # Create user message
             user_message = Message.objects.create(
@@ -91,13 +106,11 @@ class MessageAPIView(View):
             chat.is_processing = True
             chat.save()
 
-            content = content + ' ' + compiled_messages
-
-            # Start async processing
+            # Send the compiled conversation to the agent
             task = process_message_task.delay(
                 str(chat.id),
                 str(assistant_message.id),
-                content
+                compiled_conversation  # This now includes the full conversation context
             )
 
             # Store task ID for tracking

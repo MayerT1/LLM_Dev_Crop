@@ -93,15 +93,16 @@ def convert_numpy_types(obj):
 
 
 @tool
-def experiment_tool(planting_date: str, fert_plan: List[List[float]], cultivar: str) -> Dict:
+def experiment_tool(planting_date: str, fert_plan: List[List[float]], cultivar: str, county: str) -> Dict:
     """Tool to run the agricultural experiment"""
     try:
+        print(planting_date, fert_plan, cultivar, county)
         yield_results, water_stress, nitro_stress = run_experiment(
             planting_date=planting_date,
             fert_plan=fert_plan,
             cultivar=cultivar,
             admin1_country="alabama",
-            admin1_name="St. Clair"
+            admin1_name=county
         )
 
         # Convert any numpy types to native Python types for serialization
@@ -425,6 +426,10 @@ class EconomicEvaluatorAgent:
 
         # Add nodes
         workflow.add_node("improve_query", self._improve_query_node)
+        ###### CHANGES
+        workflow.add_node("detect_intent", self._detect_intent_node)
+        workflow.add_node("provide_capabilities", self._provide_capabilities_node)
+        #### END_CHANGES
         workflow.add_node("parse_input", self._parse_input_node)
         workflow.add_node("check_completeness", self._check_completeness_node)
         workflow.add_node("ask_clarification", self._ask_clarification_node)
@@ -435,7 +440,21 @@ class EconomicEvaluatorAgent:
         # Define the flow
         workflow.set_entry_point("improve_query")
 
-        workflow.add_edge("improve_query", "parse_input")
+        ###### CHANGES
+        workflow.add_edge("improve_query", "detect_intent")
+
+        workflow.add_conditional_edges(
+            "detect_intent",
+            self._should_provide_capabilities,
+            {
+                "capabilities": "provide_capabilities",
+                "experiment": "parse_input"
+            }
+        )
+
+        workflow.add_edge("provide_capabilities", END)
+        #### END_CHANGES
+
         workflow.add_edge("parse_input", "check_completeness")
 
         workflow.add_conditional_edges(
@@ -474,35 +493,47 @@ class EconomicEvaluatorAgent:
             else:
                 latest_user_msg = state.user_query.strip()
 
-            # Extract context from previous messages
+            ###### CHANGES
+            # Extract context from previous messages with better parameter tracking
             conversation_context = ""
+            all_user_messages = []
+
             if len(parts) > 2:  # There's prior conversation
-                prior_messages = "User:".join(parts[1:-1])  # Exclude first empty part and last user message
-                conversation_context = prior_messages
+                # Collect all user messages to track parameter evolution
+                for i in range(1, len(parts)):
+                    user_msg = parts[i].strip()
+                    if "Assistant:" in user_msg:
+                        user_msg = user_msg.split("Assistant:")[0].strip()
+                    if user_msg:
+                        all_user_messages.append(user_msg)
 
-            # Create improvement prompt
+                conversation_context = "\n".join([f"Previous message {i + 1}: {msg}"
+                                                  for i, msg in enumerate(all_user_messages[:-1])])
+
+            # Create improvement prompt with better parameter prioritization
             improvement_prompt = f"""
-            Analyze the following conversation and improve the latest user query by incorporating relevant context from previous messages.
-            Prioritize the most recent information the user has provided. If the context contains multiple values for specified parameters,
-            use the latest parameter provided. For fertilization information, be sure to compile all options, not just the latest one. Be
-            smart about this, only exclude prior information if user has requested to replace it in newer messages.
+            Analyze this conversation and improve the latest user message by ONLY incorporating information that was explicitly mentioned in previous messages.
 
-            Previous conversation context:
+            Conversation history:
             {conversation_context if conversation_context else "No previous context"}
 
             Latest user message:
             {latest_user_msg}
 
-            Task: Create an improved, standalone query that:
-            1. Incorporates any relevant information from previous messages (location, dates, fertilization details, etc.)
-            2. Maintains the user's intent from the latest message
-            3. Is clear and contains all available experiment parameters
-            4. Focuses on agricultural experiment evaluation
+            CRITICAL RULES:
+            1. ONLY use information that was explicitly stated in the conversation history
+            2. DO NOT add any assumptions, defaults, or information not mentioned
+            3. If no previous context exists, return the latest message unchanged
+            4. If previous context exists, only add information that was clearly stated
+            5. Keep the natural language format
 
-            Important: Only include information that was explicitly mentioned. Do not add assumptions.
+            Task: Create an improved query that combines the latest message with ONLY the explicitly mentioned information from previous messages.
 
-            Return only the improved query without explanation:
+            If the conversation history contains no relevant agricultural parameters (location, dates, fertilization, season), return the latest user message exactly as is.
+
+            Return only the improved query:
             """
+            #### END_CHANGES
 
             try:
                 logger.info("Sending query improvement prompt to LLM")
@@ -518,6 +549,88 @@ class EconomicEvaluatorAgent:
             # No conversation context, use original query
             logger.info("No conversation context detected, using original query")
             return {"user_query": state.user_query}
+
+
+    ###### CHANGES
+    def _detect_intent_node(self, state: ExperimentState) -> Dict:
+        """Detect user intent to determine if they want to run an experiment or just learn about capabilities"""
+        logger.info("=== DETECT INTENT NODE ===")
+
+        intent_prompt = f"""
+        Analyze the following user query to determine their intent:
+
+        Query: "{state.user_query}"
+
+        Determine if the user is:
+        1. Asking about what this system can do / its capabilities
+        2. Making a general inquiry about agricultural modeling
+        3. Requesting to run a specific agricultural experiment (even if incomplete)
+
+        Keywords that indicate experiment intent:
+        - "run", "test", "simulate", "model", "experiment", "evaluate"
+        - Mentions specific parameters like dates, locations, fertilization rates
+        - "what would happen if", "predict", "estimate yield"
+
+        Keywords that indicate capability inquiry:
+        - "what can you do", "how does this work", "what is this", "help"
+        - "capabilities", "features", "about"
+        - General questions without specific parameters
+
+        Respond with only:
+        "EXPERIMENT" if they want to run an experiment
+        "CAPABILITIES" if they want to learn about capabilities
+        """
+
+        try:
+            intent_response = self.llm.invoke(intent_prompt).strip().upper()
+            logger.info(f"Detected intent: {intent_response}")
+
+            is_experiment_intent = "EXPERIMENT" in intent_response
+
+            return {"experiment_intent": is_experiment_intent}
+
+        except Exception as e:
+            logger.error(f"Error detecting intent: {e}")
+            # Default to experiment intent to maintain existing behavior
+            return {"experiment_intent": True}
+
+    def _should_provide_capabilities(self, state: ExperimentState) -> str:
+        """Determine if we should provide capabilities or proceed with experiment"""
+        return "experiment" if getattr(state, 'experiment_intent', True) else "capabilities"
+
+    def _provide_capabilities_node(self, state: ExperimentState) -> Dict:
+        """Provide information about system capabilities in a natural way"""
+        logger.info("=== PROVIDE CAPABILITIES NODE ===")
+
+        capabilities_prompt = f"""
+        The user asked: "{state.user_query}"
+
+        You are an agricultural analysis agent that can predict crop yields. Generate a brief, friendly response from YOUR perspective (first person) that:
+
+        1. Introduces yourself simply
+        2. Mentions you can predict yields 
+        3. Asks if they'd like to set up an experiment
+
+        Keep it SHORT and conversational - no more than 2-3 sentences. Examples of good responses:
+        "Hi! I'm an agricultural analysis agent that can predict crop yields for Alabama farms. Would you like to set up an experiment?"
+        "That's great! I can help predict yields for different planting scenarios in Alabama. Would you like to run an experiment?"
+
+        Write from YOUR perspective as the agent, keep it brief and friendly:
+        """
+
+        try:
+            response = self.llm.invoke(capabilities_prompt).strip()
+            logger.info(f"Generated capabilities response: {response}")
+
+            return {"natural_language_output": response}
+
+        except Exception as e:
+            logger.error(f"Error generating capabilities response: {e}")
+            default_response = "Hi! I'm an agricultural analysis agent that can predict crop yields for Alabama farms. Would you like to set up an experiment?"
+
+            return {"natural_language_output": default_response}
+
+    #### END_CHANGES
 
     def _parse_input_node(self, state: ExperimentState) -> Dict:
         """Parse the user input to extract parameters"""
@@ -621,65 +734,89 @@ class EconomicEvaluatorAgent:
         if not state.missing_info:
             return {"user_query": state.user_query}
 
-        # Build customized clarification message based on specific missing info
-        clarification_parts = []
-        examples = []
-
-        for missing_item in state.missing_info:
-            if missing_item == "location confirmation":
-                clarification_parts.append(f"Location: {state.location_error_message}")
-                examples.append(
-                    "For location confirmation: Please confirm the county name or provide a different Alabama county")
-            elif missing_item == "specific Alabama county":
-                clarification_parts.append(f"Location: {state.location_error_message}")
-                examples.append(
-                    "For location: Please specify an Alabama county (e.g., \"Mobile County\" or \"Jefferson County\")")
-            elif "planting date" in missing_item:
-                clarification_parts.append("planting date")
-                examples.append("For planting date: \"2024-03-15\" or \"March 15, 2024\"")
-            elif "fertilization plan" in missing_item:
-                clarification_parts.append("fertilization plan")
-                examples.append(
-                    "For fertilization plan: \"100 kg/ha nitrogen at planting, 50 kg/ha at 30 days after planting\"")
-            elif "planting length" in missing_item or "season" in missing_item:
-                clarification_parts.append("planting length/season")
-                examples.append("For planting length: \"short season\" or \"medium season\" or \"long season\"")
-            else:
-                clarification_parts.append(missing_item)
-
-        missing_str = "\n- ".join(clarification_parts)
-        examples_str = "\n".join(examples) if examples else ""
-
+        ###### CHANGES
+        # Create a more natural and concise clarification request
         clarification_prompt = f"""
-    I need more information to run the experiment. The following information is missing or unclear:
+        You are an agricultural analysis agent. The user wants to run an experiment but some information is missing: {', '.join(state.missing_info)}
 
-    - {missing_str}
+        Current information we have:
+        - Location: {state.county if state.county else 'Not specified'}
+        - Planting date: {state.planting_date if state.planting_date else 'Not specified'}
+        - Fertilization plan: {state.fertilization_plan if state.fertilization_plan else 'Not specified'}
+        - Season length: {state.planting_length if state.planting_length else 'Not specified'}
 
-    Please provide the missing information. Here are some examples:
+        Generate a SHORT, friendly request asking for the missing information. Be conversational and helpful, but keep it brief (2-3 sentences max).
 
-    {examples_str}
-    """
+        Write from YOUR perspective as the agent. Examples:
+        "I need a few more details to run your experiment. What's your planting date and which Alabama county?"
+        "Great! I just need to know when you're planting and your fertilization plan to get started."
 
-        logger.info(f"Asking for clarification: {clarification_prompt}")
-        print(f"\nAgent: {clarification_prompt}")
+        Keep it simple and direct:
+        """
 
-        # Get user input
-        # user_response = input("\nYou: ")
-        # logger.info(f"User clarification response: {user_response}")
+        try:
+            response = self.llm.invoke(clarification_prompt).strip()
+            logger.info(f"Generated clarification request: {response}")
 
-        # Combine original query with clarification
-        # combined_query = f"{state.user_query} {user_response}"
-        return {"natural_language_output": clarification_prompt}
+            return {"natural_language_output": response}
+
+        except Exception as e:
+            logger.error(f"Error generating clarification: {e}")
+
+            # Fallback to original logic
+            clarification_parts = []
+            examples = []
+
+            for missing_item in state.missing_info:
+                if missing_item == "location confirmation":
+                    clarification_parts.append(f"Location: {state.location_error_message}")
+                    examples.append(
+                        "For location confirmation: Please confirm the county name or provide a different Alabama county")
+                elif missing_item == "specific Alabama county":
+                    clarification_parts.append(f"Location: {state.location_error_message}")
+                    examples.append(
+                        "For location: Please specify an Alabama county (e.g., \"Mobile County\" or \"Jefferson County\")")
+                elif "planting date" in missing_item:
+                    clarification_parts.append("planting date")
+                    examples.append("For planting date: \"2024-03-15\" or \"March 15, 2024\"")
+                elif "fertilization plan" in missing_item:
+                    clarification_parts.append("fertilization plan")
+                    examples.append(
+                        "For fertilization plan: \"100 kg/ha nitrogen at planting, 50 kg/ha at 30 days after planting\"")
+                elif "planting length" in missing_item or "season" in missing_item:
+                    clarification_parts.append("planting length/season")
+                    examples.append("For planting length: \"short season\" or \"medium season\" or \"long season\"")
+                else:
+                    clarification_parts.append(missing_item)
+
+            missing_str = "\n- ".join(clarification_parts)
+            examples_str = "\n".join(examples) if examples else ""
+
+            clarification_message = f"""
+        I need more information to run the experiment. The following information is missing or unclear:
+
+        - {missing_str}
+
+        Please provide the missing information. Here are some examples:
+
+        {examples_str}
+        """
+
+            return {"natural_language_output": clarification_message}
+        #### END_CHANGES
 
     def _run_experiment_node(self, state: ExperimentState) -> Dict:
         """Run the agricultural experiment"""
         logger.info("=== RUN EXPERIMENT NODE ===")
 
         try:
+            print("INVOKING EXPERIMENT")
+            print("COUNTY IS " + state.county)
             results = experiment_tool.invoke({
                 "planting_date": state.planting_date,
                 "fert_plan": state.fertilization_plan,
-                "cultivar": state.cultivar
+                "cultivar": state.cultivar,
+                "county": state.county
             })
 
             logger.info(f"Experiment results: {results}")
@@ -709,9 +846,10 @@ class EconomicEvaluatorAgent:
                 fert_display.append(f"{rate} kg/ha nitrogen {timing}")
         fert_plan_str = ", ".join(fert_display) if fert_display else "No fertilization plan specified"
 
-        # Create a focused prompt for concise output
+        ###### CHANGES
+        # Create a more natural and engaging prompt for output generation
         prompt = f"""
-        Generate a concise summary of the agricultural experiment results. Focus on the key information without extra details.
+        Generate a natural, conversational summary of the agricultural experiment results. Make it sound like you're talking to a farmer or agricultural professional.
 
         Experiment Parameters:
         - Planting Date: {state.planting_date}
@@ -724,13 +862,16 @@ class EconomicEvaluatorAgent:
         Water Stress Results: {results.get('water_stress', {})}
         Nitrogen Stress Results: {results.get('nitro_stress', {})}
 
-        Provide ONLY:
-        1. Confirmation of the experiment parameters used. Include all parameters.
-        2. Estimated yield with confidence interval. Provide summaries for all confidence intervals.
-        3. Brief summary of stress factors that affected growth
+        Structure your response as follows:
+        1. Brief confirmation of what was modeled
+        2. Key yield predictions with confidence intervals (make this the highlight)
+        3. Summary of any stress factors that affected growth
+        4. End with a natural offer to explore different scenarios - vary this each time (examples: "Would you like to see how different planting dates might affect yield?", "I can also model what happens with different fertilization strategies if you're interested", "Feel free to ask about other scenarios or parameter combinations")
 
-        Keep the response concise and factual. Do NOT mention phosphorous, potassium, or any nutrients other than nitrogen unless explicitly provided in the fertilization plan. Only discuss nitrogen applications as specified.
+        Make it conversational and helpful, not technical or robotic. Focus on actionable insights for agricultural decision-making.
+        Only discuss nitrogen applications as specified in the fertilization plan - don't mention other nutrients unless explicitly provided.
         """
+        #### END_CHANGES
 
         logger.info("Sending prompt to LLM for natural language generation")
         logger.info(f"Prompt: {prompt}")
@@ -773,7 +914,6 @@ class EconomicEvaluatorAgent:
         logger.info(f"Final result: {result}")
         return result
 
-
     def verbose_evaluate(self, user_query: str) -> Tuple[str, Dict]:
         """Main entry point for evaluation"""
         logger.info(f"Starting evaluation for query: {user_query}")
@@ -803,7 +943,6 @@ class EconomicEvaluatorAgent:
 
         logger.info(f"Final result: {result}")
         return result, final_state_dict
-
 
 def main():
     """Interactive main function for testing"""
