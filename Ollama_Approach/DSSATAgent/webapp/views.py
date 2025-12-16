@@ -1,4 +1,6 @@
 import json
+import time
+import logging
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -8,12 +10,21 @@ from django.views import View
 from .models import Chat, Message, Chart
 from .tasks import process_message_task
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def format_time(t):
+    minutes = int(t // 60)
+    seconds = int(t % 60)
+    milliseconds = int((t * 1000) % 1000)
+    return f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
 class ChatView(View):
     """View for the chat interface"""
 
     def get(self, request, chat_id):
         """Render the chat page"""
+        start = time.perf_counter()
         chat = get_object_or_404(Chat, id=chat_id)
         messages = chat.messages.all().order_by('created_at')
 
@@ -46,6 +57,8 @@ class ChatView(View):
             'chat_id': str(chat.id),
             'is_processing': chat.is_processing
         }
+        end = time.perf_counter()
+        logger.info("Pre-render processing time (ChatView): "+ str(format_time(end - start)))
         return render(request, 'webapp/chat.html', context)
 
 
@@ -55,6 +68,7 @@ class MessageAPIView(View):
 
     def post(self, request, chat_id):
         """Send a new message"""
+        start = time.perf_counter()
         try:
             data = json.loads(request.body)
             content = data.get('content', '').strip()
@@ -117,6 +131,8 @@ class MessageAPIView(View):
             assistant_message.task_id = task.id
             assistant_message.save()
 
+            end = time.perf_counter()
+            logger.info("Response processing time (MessageAPIView): "+ str(format_time(end - start)))
             return JsonResponse({
                 'success': True,
                 'user_message_id': str(user_message.id),
@@ -136,6 +152,7 @@ class MessageStatusAPIView(View):
 
     def get(self, request, chat_id, message_id):
         """Check if message processing is complete"""
+        start = time.perf_counter()
         try:
             chat = get_object_or_404(Chat, id=chat_id)
             message = get_object_or_404(Message, id=message_id, chat=chat)
@@ -164,6 +181,8 @@ class MessageStatusAPIView(View):
 
             elif message.status == 'failed':
                 response_data['error'] = 'Message processing failed'
+            end = time.perf_counter()
+            logger.info("Response processing time (MessageStatusAPIView): "+ str(format_time(end - start)))
 
             return JsonResponse(response_data)
 
@@ -176,6 +195,7 @@ class NewChatView(View):
 
     def get(self, request):
         """Create a new chat and redirect to the chat page"""
+        start = time.perf_counter()
         # Create a new chat with a default title
         chat = Chat.objects.create(title='New Chat')
 
@@ -189,14 +209,19 @@ class NewChatView(View):
             status='completed'
         )
 
+        end = time.perf_counter()
+        logger.info("Response processing time (NewChatView:Get): "+ str(format_time(end - start)))
+
         # Redirect to the chat page
         from django.shortcuts import redirect
         return redirect('webapp:chat', chat_id=chat.id)
 
     def post(self, request):
         """Create a new chat with optional title and redirect"""
+        start = time.perf_counter()
         title = request.POST.get('title', 'New Chat')
         chat = Chat.objects.create(title=title)
+        mid_start = time.perf_counter()
 
         # Create assistant message
         assistant_message = Message.objects.create(
@@ -208,6 +233,9 @@ class NewChatView(View):
             status='completed'
         )
 
+        end = time.perf_counter()
+        logger.info("Response processing time (NewChatView:Post): "+ str(format_time(end - start)))
+
         from django.shortcuts import redirect
         return redirect('webapp:chat', chat_id=chat.id)
 
@@ -218,6 +246,7 @@ class NewChatAPIView(View):
 
     def post(self, request):
         """Create a new chat"""
+        start = time.perf_counter()
         try:
             data = json.loads(request.body) if request.body else {}
             title = data.get('title', '')
@@ -233,6 +262,9 @@ class NewChatAPIView(View):
                         ' and crop variation. Right now, I can only assist with experiments in Alabama using maize.',
                 status='completed'
             )
+
+            end = time.perf_counter()
+            logger.info("Response processing time (NewChatAPIView): "+ str(format_time(end - start)))
 
             return JsonResponse({
                 'success': True,
@@ -253,12 +285,17 @@ class HomeView(View):
 
     def get(self, request):
         """Show home page with recent chats"""
+        start = time.perf_counter()
         # Get recent chats (last 5)
         recent_chats = Chat.objects.all()[:5]
 
         context = {
             'recent_chats': recent_chats
         }
+
+        end = time.perf_counter()
+        logger.info("Response processing time (HomeView): "+ str(format_time(end - start)))
+
         return render(request, 'webapp/home.html', context)
 
 

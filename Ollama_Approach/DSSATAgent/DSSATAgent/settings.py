@@ -16,20 +16,23 @@ import json
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-config_file = open(str(BASE_DIR) + '/config.json', )
-config = json.load(config_file)
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config['SECRET_KEY']
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = True if os.environ.get('DEBUG') else False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", os.environ.get("SITE_URL")]
+if os.environ.get('SITE_URL'):
+    CSRF_TRUSTED_ORIGINS = [
+        'https://' + str(os.environ.get('SITE_URL')),
+        str(os.environ.get('SITE_URL')),
+    ]
 
 
 # Application definition
@@ -46,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -118,8 +122,11 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
-
-STATIC_URL = "static/"
+subpath = os.environ.get('SUBPATH')
+if subpath:
+    STATIC_URL = subpath + "/static/"
+else:
+    STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",  # Project-level static files (optional)
@@ -133,6 +140,9 @@ STATICFILES_FINDERS = [
     'django.contrib.staticfiles.finders.FileSystemFinder',
     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 ]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
 
 # Media files (user uploads)
 MEDIA_URL = '/media/'

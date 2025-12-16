@@ -191,7 +191,7 @@ class ChatApp {
             this.pollInProgress = true;
 
             const xhr = new XMLHttpRequest();
-            xhr.open('GET', `/api/chats/${this.chatId}/messages/${messageId}/status/`);
+            xhr.open('GET', `/earthrise/api/chats/${this.chatId}/messages/${messageId}/status/`);
             xhr.onload = () => {
                 this.pollInProgress = false;
                 if (xhr.status >= 200 && xhr.status < 300) {
@@ -200,7 +200,7 @@ class ChatApp {
                         clearInterval(pollInterval);
                         this.pendingMessages.delete(messageId);
                         this.updateMessage(messageId, data.content || data.error, data.charts || [], 'completed');
-                        this.updateProcessingState(data.is_processing);
+                        this.updateProcessingState(false);
                     }
                     if (data.status === 'pending') {
                         const node = data.current_node || 'Waiting...';
@@ -240,7 +240,7 @@ class ChatApp {
         this.addMessage('user', content);
 
         $.ajax({
-            url: `/api/chats/${this.chatId}/messages/`,
+            url: `/earthrise/api/chats/${this.chatId}/messages/`,
             method: 'POST',
             contentType: 'application/json',
             dataType: 'json',

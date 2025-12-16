@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from datetime import datetime
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
@@ -22,12 +23,10 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 def load_config():
-    try:
-        with open('config.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        logger.warning("config.json not found, using default configuration")
-        return {"ollama_url": "http://localhost:11434"}
+    return {
+        'ollama_url': os.environ.get('OLLAMA_URL'),
+        'model_name': os.environ.get('MODEL_NAME')
+    }
 
 
 config = load_config()
@@ -412,7 +411,7 @@ class EconomicEvaluatorAgent:
     def __init__(self):
         self.llm = OllamaLLM(
             base_url=config["ollama_url"],
-            model="llama3.1:latest",
+            model=config["model_name"],
             verbose=True
         )
         self.parser = ExperimentParser(self.llm)

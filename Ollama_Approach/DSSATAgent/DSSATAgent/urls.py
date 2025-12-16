@@ -16,8 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+import os
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('webapp.urls')),
-]
+subpath = os.environ.get("SUBPATH")
+
+if subpath:
+    urlpatterns = [
+        path('admin/', admin.site.urls),
+        path(subpath + '/', include('webapp.urls')),
+    ]
+else:
+    urlpatterns = [
+        path('admin/', admin.site.urls),
+        path('', include('webapp.urls')),
+    ]

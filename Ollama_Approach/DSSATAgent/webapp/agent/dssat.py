@@ -5,9 +5,20 @@ from datetime import datetime, timedelta
 from .dssat_plot import get_stress_series_data, get_anomaly_series_data, get_columnRange_series_data
 from .dssat_base import Session, AdminBase
 import traceback
+import os
 
-f = open('./config.json', )
-config = json.load(f)
+config = {
+    'USERNAME': os.environ.get('USERNAME'),
+    'PASSWORD': os.environ.get('PASSWORD'),
+    'HOST': os.environ.get('HOST'),
+    'DBUSER': os.environ.get('DBUSER'),
+    'LOCAL_PORT': os.environ.get('LOCAL_PORT'),
+    'EC2_HOST': os.environ.get('EC2_HOST'),
+    'EC2_USER': os.environ.get('EC2_USER'),
+    'RDS_HOST': os.environ.get('RDS_HOST'),
+    'RDS_PORT': os.environ.get('RDS_PORT'),
+    'PPK_PATH': os.environ.get('PPK_PATH'),
+}
 
 
 def connect(dbname):
@@ -62,7 +73,7 @@ def close_ssh_tunnel(tunnel):
 
 
 def run_experiment(planting_date, fert_plan, cultivar, admin1_country, admin1_name):
-    tunnel = create_ssh_tunnel()
+    tunnel = create_ssh_tunnel() if os.environ.get('ENABLE_TUNNEL') else None
 
     con_params = {
         "database": config['USERNAME'],
@@ -107,4 +118,5 @@ def run_experiment(planting_date, fert_plan, cultivar, admin1_country, admin1_na
         print(e)
         traceback.print_exc()
     finally:
-        close_ssh_tunnel(tunnel)
+        if tunnel:
+            close_ssh_tunnel(tunnel)
